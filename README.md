@@ -1,0 +1,149 @@
+# Ad Campaign Performance and Attribution Analytics (Criteo, DuckDB)
+
+> Analyzing a user-level sample of real display-ad data to find which campaigns waste spend, where the funnel leaks, and how conversion changes with ad frequency — then recommending a product action.
+
+---
+
+## Business Problem
+
+Digital advertising platforms face a persistent allocation challenge: budget flows to campaigns based on historical bids and volume, not necessarily efficiency. Without a clear view of which campaigns deliver the most attributed conversions per unit of spend — and whether frequency caps could unlock savings — advertisers and platform teams lack the signal to act.
+
+This project uses a 30-day Criteo impression dataset to answer three questions:
+1. Which campaigns are over-spending relative to their conversion output?
+2. Where does the funnel leak, and is leakage click-driven or view-driven?
+3. Does conversion likelihood change with ad frequency, and is there a point of diminishing returns?
+
+The findings are synthesized into a one-page product memo with a concrete recommendation and testable hypothesis.
+
+---
+
+## Data
+
+**Source:** [Criteo Attribution Modeling for Bidding dataset](https://huggingface.co/datasets/criteo/criteo-attribution-dataset) — published by Criteo and hosted on Hugging Face.
+
+**Citation:** Eustache Diemert, Julien Meynet, Pierre Galland, Damien Lefortier. *Attribution Modeling Increases Efficiency of Bidding in Display Advertising.* ADKDD'17.
+
+**Key facts:**
+- One row per ad impression, sorted by timestamp, spanning ~30 days of live Criteo traffic
+- This project uses a **5% user-level sample** (`hash(uid) % 20 = 0`), keeping each user's full journey intact
+- Final sample: approximately **[N] impressions** across **[U] users** and **[C] campaigns**
+
+**Important caveats:**
+- `cost` and `cpo` columns are **transformed by Criteo** — not real currency. All cost comparisons are relative.
+- `cat1`–`cat9` are anonymized categorical features with unknown meaning; not interpreted here.
+- Data is **advertiser-side only** — no publisher or placement information.
+
+**License:** Check the [dataset page](https://huggingface.co/datasets/criteo/criteo-attribution-dataset) for current terms before use. Credit Criteo in any public work.
+
+---
+
+## Approach
+
+```
+Download TSV.gz → Load 5% user sample (DuckDB) → Stage + clean NULLs
+    → Spend efficiency analysis → Funnel analysis → Frequency analysis
+    → Reconciliation checks → Charts → Product memo
+```
+
+Each step is a versioned SQL file in `sql/`. Results are saved to `results/*.csv`. Charts are generated from those CSVs by `make_charts.py`.
+
+---
+
+## Key Findings
+
+> **Fill in after running your queries.** Replace bracketed placeholders with real numbers from your CSV outputs. Charts are embedded below once generated.
+
+### Finding 1 — Spend concentration without conversion payoff
+![Cost per attributed conversion by campaign](charts/01_cost_per_conv.png)
+
+Top [X]% of campaigns by spend account for [Y]% of total transformed cost but only [Z]% of attributed conversions.
+
+### Finding 2 — View-driven funnel: many conversions happen without a click
+![Post-click vs post-view conversions by campaign](charts/05_click_vs_view.png)
+
+[P]% of conversions across qualifying campaigns had no click in the attribution path.
+
+### Finding 3 — Diminishing returns at high frequency
+![Conversion rate by frequency bucket](charts/04_frequency.png)
+
+Users with 10+ impressions per campaign converted at [R]%, while 1-impression users converted at [S]%. The relationship is non-monotonic; see Chart 4 for the full picture.
+
+---
+
+## Recommendation
+
+Cap ad frequency at **[N] impressions per user per campaign per 7-day window** and reallocate budget to the most efficient campaigns. See [`docs/memo.md`](docs/memo.md) for the full memo including test design and caveats.
+
+---
+
+## Limitations
+
+1. **Observational data.** All findings are correlations. The frequency–conversion relationship is confounded by user intent. An A/B frequency-cap experiment (described in the memo) is needed to establish causation.
+2. **5% sample.** Point estimates may differ from the full dataset. Re-run on full data before production decisions.
+3. **Transformed cost.** No absolute monetary conclusions can be drawn.
+4. **Single attribution rule.** The `attribution = 1` flag uses Criteo's own rule. A different model (last-touch, time-decay) would change campaign rankings.
+5. **No publisher data.** Publisher-side effects of any recommendation cannot be measured here.
+
+---
+
+## How to Run
+
+### 1. Install dependencies
+```bash
+# Windows
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 2. Download the dataset
+```bash
+huggingface-cli download criteo/criteo-attribution-dataset \
+  criteo_attribution_dataset.tsv.gz --repo-type dataset --local-dir data
+```
+If login is required, accept the dataset terms on Hugging Face first (`huggingface-cli login`).
+
+### 3. Run all SQL analyses
+```bash
+python run_all.py
+```
+
+### 4. Generate charts
+```bash
+python make_charts.py
+```
+
+### 5. Read the memo
+Open [`docs/memo.md`](docs/memo.md) and fill in the bracketed numbers from your query outputs.
+
+---
+
+## Repo Structure
+
+```
+criteo-attribution-analytics/
+├── data/                         ← gitignored; put criteo_attribution_dataset.tsv.gz here
+├── sql/
+│   ├── 01_load_sample.sql        ← 5% user-stratified sample
+│   ├── 02_staging.sql            ← NULL cleanup, sanity checks
+│   ├── 03_spend_efficiency.sql   ← Campaign cost & conversion efficiency
+│   ├── 04_funnel.sql             ← Funnel leakage & click/view split
+│   ├── 05_frequency.sql          ← Frequency bucket conversion rates
+│   └── 06_reconciliation.sql     ← Validation checks
+├── results/                      ← CSV outputs (generated by run_all.py)
+├── charts/                       ← PNG charts (generated by make_charts.py)
+├── docs/
+│   ├── metric_dictionary.md      ← Definitions for every metric used
+│   └── memo.md                   ← 1-page product recommendation memo
+├── run_all.py                    ← Runs all SQL files end-to-end
+├── make_charts.py                ← Generates all 5 charts
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Credit
+
+- Dataset: Criteo Attribution Modeling for Bidding — Eustache Diemert et al., ADKDD'17
+- SQL engine: [DuckDB](https://duckdb.org/) — in-process OLAP database
