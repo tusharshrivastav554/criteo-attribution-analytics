@@ -26,7 +26,7 @@ The findings are synthesized into a one-page product memo with a concrete recomm
 **Key facts:**
 - One row per ad impression, sorted by timestamp, spanning ~30 days of live Criteo traffic
 - This project uses a **5% user-level sample** (`hash(uid) % 20 = 0`), keeping each user's full journey intact
-- Final sample: approximately **[N] impressions** across **[U] users** and **[C] campaigns**
+- Final sample: **823,604 impressions** across **307,695 users** and **191 qualifying campaigns** (≥1,000 impressions)
 
 **Important caveats:**
 - `cost` and `cpo` columns are **transformed by Criteo** — not real currency. All cost comparisons are relative.
@@ -56,17 +56,17 @@ Each step is a versioned SQL file in `sql/`. Results are saved to `results/*.csv
 ### Finding 1 — Spend concentration without conversion payoff
 ![Cost per attributed conversion by campaign](charts/01_cost_per_conv.png)
 
-Top [X]% of campaigns by spend account for [Y]% of total transformed cost but only [Z]% of attributed conversions.
+The top 20% of campaigns by spend (38 of 191) account for **60.3% of total transformed cost** but deliver only **41.7% of attributed conversions** — an 18.6 percentage-point efficiency gap. The least efficient campaign costs **1,212× more** per attributed conversion than the most efficient.
 
-### Finding 2 — View-driven funnel: many conversions happen without a click
+### Finding 2 — Funnel: only 53% of conversions are attributed to Criteo
 ![Post-click vs post-view conversions by campaign](charts/05_click_vs_view.png)
 
-[P]% of conversions across qualifying campaigns had no click in the attribution path.
+Across the 191 qualifying campaigns: 17,175 total conversions, of which **9,159 (53.3%) are attributed to Criteo**. All conversions in this dataset occurred with a click in the attribution path (`share_conversions_with_click = 100%`), confirming Criteo's last-click attribution rule.
 
-### Finding 3 — Diminishing returns at high frequency
+### Finding 3 — Strong frequency-conversion relationship (correlation)
 ![Conversion rate by frequency bucket](charts/04_frequency.png)
 
-Users with 10+ impressions per campaign converted at [R]%, while 1-impression users converted at [S]%. The relationship is non-monotonic; see Chart 4 for the full picture.
+Users who saw a campaign's ads **10+ times** converted at **28.2%**, vs **1.6%** for users who saw just 1 ad — a **17.5× difference**. However, heavy-exposure users may have higher intent regardless of ad volume.
 
 ---
 
