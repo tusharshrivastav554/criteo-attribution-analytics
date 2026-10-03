@@ -1,6 +1,6 @@
 # Metric Dictionary
 
-> **Scope:** Criteo Attribution Analytics project — user-level 5% sample of Criteo display-ad data (30 days, ~[N] impressions after sampling). All metrics computed in DuckDB from the `stg_events` view unless stated otherwise.
+> **Scope:** Criteo Attribution Analytics project — user-level 5% sample of Criteo display-ad data (30 days, **823,604 impressions** after sampling). All metrics computed in DuckDB from the `stg_events` view unless stated otherwise.
 
 ---
 
