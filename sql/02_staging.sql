@@ -21,7 +21,7 @@ SELECT
 FROM raw_sample;
 
 -- ─── Sanity check 1: Overall shape ──────────────────────────────────────────
-SELECT
+SELECT  
     COUNT(*)                              AS impressions,
     COUNT(DISTINCT uid)                   AS users,
     COUNT(DISTINCT campaign)              AS campaigns,

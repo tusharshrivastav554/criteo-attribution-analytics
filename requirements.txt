@@ -1,5 +1,9 @@
-duckdb
+﻿duckdb
 pandas
 matplotlib
 pyarrow
 huggingface_hub
+streamlit>=1.32
+plotly>=5.20
+scipy
+numpy
