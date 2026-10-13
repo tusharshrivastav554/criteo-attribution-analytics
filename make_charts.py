@@ -1,4 +1,4 @@
-﻿"""
+"""
 make_charts.py â€” Generate all 5 analysis charts from results CSVs.
 
 Produces:
@@ -12,8 +12,14 @@ Usage:
     python make_charts.py
 """
 
+import io
 import pathlib
+import sys
 import warnings
+
+# Force UTF-8 output on Windows (avoids cp1252 UnicodeEncodeError)
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -53,14 +59,21 @@ PEACH = "#fab387"
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def chart_01_cost_per_conv() -> None:
     df = pd.read_csv("results/campaign_performance.csv")
+    if df.empty:
+        print("⚠️ Warning: results/campaign_performance.csv is empty. Skipping Chart 1.")
+        return
+    df["cost_per_attr_conv"] = pd.to_numeric(df["cost_per_attr_conv"], errors="coerce")
     df = df.dropna(subset=["cost_per_attr_conv"]).sort_values("cost_per_attr_conv")
+    if df.empty:
+        print("⚠️ Warning: No valid cost_per_attr_conv rows found. Skipping Chart 1.")
+        return
 
     top10 = df.head(10)
     worst10 = df.tail(10).sort_values("cost_per_attr_conv", ascending=False)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     fig.suptitle(
-        "Cost per Attributed Conversion â€” Most vs Least Efficient Campaigns\n"
+        "Cost per Attributed Conversion — Most vs Least Efficient Campaigns\n"
         "(transformed cost units; relative comparisons only)",
         fontsize=12, fontweight="bold", color="#cdd6f4",
     )
@@ -84,16 +97,24 @@ def chart_01_cost_per_conv() -> None:
     fig.tight_layout()
     fig.savefig(CHARTS / "01_cost_per_conv.png", dpi=DPI, bbox_inches="tight")
     plt.close(fig)
-    print("âœ“ Chart 1 saved: charts/01_cost_per_conv.png")
+    print("✓ Chart 1 saved: charts/01_cost_per_conv.png")
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Chart 2 â€” Spend share vs conversion share (scatter)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 2 — Spend share vs conversion share (scatter)
+# ─────────────────────────────────────────────────────────────────────────────
 def chart_02_spend_vs_conv() -> None:
-    df = pd.read_csv("results/campaign_performance.csv").dropna(
-        subset=["spend_share", "conv_share"]
-    )
+    df = pd.read_csv("results/campaign_performance.csv")
+    if df.empty:
+        print("⚠️ Warning: results/campaign_performance.csv is empty. Skipping Chart 2.")
+        return
+    df["spend_share"] = pd.to_numeric(df["spend_share"], errors="coerce")
+    df["conv_share"] = pd.to_numeric(df["conv_share"], errors="coerce")
+    df = df.dropna(subset=["spend_share", "conv_share"])
+    if df.empty:
+        print("⚠️ Warning: No valid spend_share/conv_share rows found. Skipping Chart 2.")
+        return
+
     df["spend_pct"] = df["spend_share"] * 100
     df["conv_pct"] = df["conv_share"] * 100
     df["waste"] = df["spend_pct"] - df["conv_pct"]  # positive = overspending vs results
@@ -114,7 +135,7 @@ def chart_02_spend_vs_conv() -> None:
     ax.plot([0, lim], [0, lim], "--", color="#888899", linewidth=1, label="Equal share")
 
     cbar = fig.colorbar(sc, ax=ax, pad=0.02)
-    cbar.set_label("Spend share âˆ’ Conv share (%pt)", color="#cdd6f4")
+    cbar.set_label("Spend share − Conv share (%pt)", color="#cdd6f4")
     cbar.ax.yaxis.set_tick_params(color="#cdd6f4")
     plt.setp(cbar.ax.yaxis.get_ticklabels(), color="#cdd6f4")
 
@@ -131,14 +152,21 @@ def chart_02_spend_vs_conv() -> None:
     fig.tight_layout()
     fig.savefig(CHARTS / "02_spend_vs_conv.png", dpi=DPI, bbox_inches="tight")
     plt.close(fig)
-    print("âœ“ Chart 2 saved: charts/02_spend_vs_conv.png")
+    print("✓ Chart 2 saved: charts/02_spend_vs_conv.png")
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Chart 3 â€” Aggregate funnel: impressions â†’ clicks â†’ conversions â†’ attributed
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 3 — Aggregate funnel: impressions → clicks → conversions → attributed
+# ─────────────────────────────────────────────────────────────────────────────
 def chart_03_funnel() -> None:
     df = pd.read_csv("results/funnel_by_campaign.csv")
+    if df.empty:
+        print("⚠️ Warning: results/funnel_by_campaign.csv is empty. Skipping Chart 3.")
+        return
+
+    for col in ["impressions", "clicks", "conversions", "attributed_conversions"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
     totals = {
         "Impressions": df["impressions"].sum(),
         "Clicks": df["clicks"].sum(),
@@ -173,8 +201,8 @@ def chart_03_funnel() -> None:
     ax.set_yscale("log")
     ax.set_ylabel("Count (log scale)")
     ax.set_title(
-        "Aggregate Ad Funnel â€” Impressions â†’ Clicks â†’ Conversions â†’ Attributed\n"
-        "(Campaigns with â‰¥ 1,000 impressions)",
+        "Aggregate Ad Funnel — Impressions → Clicks → Conversions → Attributed\n"
+        "(Campaigns with ≥ 1,000 impressions)",
         fontsize=10,
     )
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
@@ -183,14 +211,22 @@ def chart_03_funnel() -> None:
     fig.tight_layout()
     fig.savefig(CHARTS / "03_funnel.png", dpi=DPI, bbox_inches="tight")
     plt.close(fig)
-    print("âœ“ Chart 3 saved: charts/03_funnel.png")
+    print("✓ Chart 3 saved: charts/03_funnel.png")
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Chart 4 â€” Conversion rate by frequency bucket (with pair counts labeled)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 4 — Conversion rate by frequency bucket (with pair counts labeled)
+# ─────────────────────────────────────────────────────────────────────────────
 def chart_04_frequency() -> None:
-    df = pd.read_csv("results/frequency_buckets.csv").sort_values("bucket_order")
+    df = pd.read_csv("results/frequency_buckets.csv")
+    if df.empty:
+        print("⚠️ Warning: results/frequency_buckets.csv is empty. Skipping Chart 4.")
+        return
+
+    df["bucket_order"] = pd.to_numeric(df["bucket_order"], errors="coerce")
+    df["conv_rate"] = pd.to_numeric(df["conv_rate"], errors="coerce").fillna(0)
+    df["user_campaign_pairs"] = pd.to_numeric(df["user_campaign_pairs"], errors="coerce").fillna(0)
+    df = df.sort_values("bucket_order")
 
     fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar(
@@ -203,7 +239,7 @@ def chart_04_frequency() -> None:
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.05,
-            f"n={pairs:,}",
+            f"n={int(pairs):,}",
             ha="center", va="bottom", fontsize=8, color="#cdd6f4",
         )
 
@@ -211,7 +247,7 @@ def chart_04_frequency() -> None:
     ax.set_ylabel("Conversion rate (%)")
     ax.set_title(
         "Conversion Rate by Ad Frequency Bucket\n"
-        "Correlation only â€” heavy-exposure users may differ in intent",
+        "Correlation only — heavy-exposure users may differ in intent",
         fontsize=10,
     )
     ax.grid(axis="y")
@@ -219,16 +255,28 @@ def chart_04_frequency() -> None:
     fig.tight_layout()
     fig.savefig(CHARTS / "04_frequency.png", dpi=DPI, bbox_inches="tight")
     plt.close(fig)
-    print("âœ“ Chart 4 saved: charts/04_frequency.png")
+    print("✓ Chart 4 saved: charts/04_frequency.png")
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Chart 5 â€” Post-click vs post-view conversion share (top 15 campaigns)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 5 — Post-click vs post-view conversion share (top 15 campaigns)
+# ─────────────────────────────────────────────────────────────────────────────
 def chart_05_click_vs_view() -> None:
-    df = pd.read_csv("results/funnel_by_campaign.csv").dropna(
-        subset=["share_conversions_with_click"]
+    df = pd.read_csv("results/funnel_by_campaign.csv")
+    if df.empty:
+        print("⚠️ Warning: results/funnel_by_campaign.csv is empty. Skipping Chart 5.")
+        return
+
+    df["conversions"] = pd.to_numeric(df["conversions"], errors="coerce").fillna(0)
+    df["share_conversions_with_click"] = pd.to_numeric(
+        df["share_conversions_with_click"], errors="coerce"
     )
+    df = df.dropna(subset=["share_conversions_with_click"])
+
+    if df.empty:
+        print("⚠️ Warning: No valid share_conversions_with_click data. Skipping Chart 5.")
+        return
+
     df = df.nlargest(15, "conversions").copy()
     df["click_pct"] = df["share_conversions_with_click"] * 100
     df["view_pct"] = 100 - df["click_pct"]
@@ -243,7 +291,7 @@ def chart_05_click_vs_view() -> None:
     ax.axvline(50, color="#888899", linewidth=1, linestyle="--")
     ax.set_xlabel("Share of conversions (%)")
     ax.set_title(
-        "Post-Click vs Post-View Conversions â€” Top 15 Campaigns by Conversions\n"
+        "Post-Click vs Post-View Conversions — Top 15 Campaigns by Conversions\n"
         "Campaigns near 0% post-click rely almost entirely on view-through attribution",
         fontsize=10,
     )
@@ -254,7 +302,7 @@ def chart_05_click_vs_view() -> None:
     fig.tight_layout()
     fig.savefig(CHARTS / "05_click_vs_view.png", dpi=DPI, bbox_inches="tight")
     plt.close(fig)
-    print("âœ“ Chart 5 saved: charts/05_click_vs_view.png")
+    print("✓ Chart 5 saved: charts/05_click_vs_view.png")
 
 
 if __name__ == "__main__":
@@ -264,5 +312,5 @@ if __name__ == "__main__":
     chart_03_funnel()
     chart_04_frequency()
     chart_05_click_vs_view()
-    print("\nâœ“ All 5 charts generated in charts/")
+    print("\n✓ Chart generation completed.")
 

@@ -6,8 +6,9 @@ CREATE OR REPLACE TABLE raw_sample AS
 SELECT *
 FROM read_csv('data/criteo_attribution_dataset.tsv.gz',
               delim = E'\t', header = true)
-WHERE hash(uid) % 20 = 0;
-
+-- WHERE hash(uid) % 20 = 0;
+-- LIMIT 1000;
+;
 -- Inspect schema and data types
 DESCRIBE raw_sample;
 

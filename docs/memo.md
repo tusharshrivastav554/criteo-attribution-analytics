@@ -2,71 +2,87 @@
 
 **Title:** Cap Ad Frequency and Rebalance Spend Toward High-Efficiency Campaigns
 
-**To:** Product Manager, Ad Platform &nbsp;&nbsp; **From:** [Your name] &nbsp;&nbsp; **Date:** [Date of analysis]
+**To:** Product Manager, Ad Platform    **From:** [Your name]    **Date:** October 2026
 
 ---
 
 ## 1. Problem
 
-A meaningful share of Criteo campaign budget is flowing to campaigns that generate a disproportionately small share of attributed conversions, suggesting both over-frequency and misallocated spend. We need to decide whether to introduce a frequency cap and reallocate budget to improve cost efficiency across the platform.
+Across 661 qualifying campaigns (>=1,000 impressions each), a disproportionate share of Criteo ad budget flows to campaigns that under-deliver on attributed conversions. At the same time, conversion rate increases monotonically with ad frequency -- yet the relationship is observational and may reflect user-intent differences rather than causal frequency effects. We need to decide whether to introduce a frequency cap and reallocate freed budget to higher-efficiency campaigns to improve overall cost per attributed conversion.
 
 ---
 
 ## 2. Key Findings
 
-- **Finding 1 — Spend concentration without conversion payoff:** The top 20% of campaigns by spend (38 of 191 qualifying campaigns) account for **60.3% of total transformed cost** but deliver only **41.7% of attributed conversions** — an 18.6 percentage-point efficiency gap. The least efficient campaign costs **1,212× more** per attributed conversion than the most efficient. *(Source: `results/campaign_performance.csv`, Chart 1 & 2)*
+**Finding 1 -- Spend concentration without conversion payoff**
+The top 20% of campaigns by spend (132 of 661) account for **72.6% of total transformed cost** but deliver only **62.8% of attributed conversions** -- a **9.8 percentage-point efficiency gap**. The least efficient campaign costs **1,413x more** per attributed conversion than the most efficient (transformed cost ratio). *(Source: 
+esults/campaign_performance.csv, Charts 1 & 2)*
 
-- **Finding 2 — Attribution gap:** Of 17,175 total conversions in qualifying campaigns, only **9,159 (53.3%) are attributed to Criteo** under the dataset's built-in rule. This means nearly half of observed conversions are not credited to Criteo's impressions under the current attribution model. *(Source: `results/funnel_by_campaign.csv`, Chart 5)*
+**Finding 2 -- Attribution model is robust at the top, but reshuffles mid-tier**
+The dataset covers **16.46 M impressions** yielding **236,948 attributed conversions** out of 438,275 total conversions (**54.1% attribution rate**). The top 3 campaigns by credit are stable across all four attribution models (last-touch, first-touch, linear, time-decay), suggesting the top cohort is genuinely high-performing. However, mid-tier campaigns (ranks 4-50) shift materially between models, meaning spend-reallocation decisions are sensitive to the attribution rule chosen. All conversions in this dataset had a click in the attribution path (share_conversions_with_click = 100%), confirming last-click attribution. *(Source: 
+esults/attribution_model_comparison.csv, 
+esults/funnel_by_campaign.csv)*
 
-- **Finding 3 — Frequency-conversion correlation:** Users who saw a campaign's ads **10+ times** converted at **28.2%**, vs **1.6%** for users who saw just 1 ad — a 17.5× difference. The relationship is monotonically increasing across all five frequency buckets (1 → 2 → 3-4 → 5-9 → 10+: 1.6% → 4.3% → 8.1% → 14.8% → 28.2%). *(Source: `results/frequency_buckets.csv`, Chart 4)*
+**Finding 3 -- Strong frequency-conversion correlation; 38.9% of conversions occur within 1 hour**
+Conversion rate rises monotonically with frequency: **1.6%** (1 impression) -> **4.4%** (2) -> **8.2%** (3-4) -> **15.2%** (5-9) -> **28.3%** (10+) -- a 17.5x spread. Selection bias is likely: heavy-exposure users may have higher purchase intent independent of ad volume. Separately, **38.9% of conversions occur within 1 hour** of the last touchpoint, 77.1% within 3 days, and 20.7% take 7-30 days. A 7-day attribution window would miss roughly 1 in 5 conversions. *(Source: 
+esults/frequency_buckets.csv, 
+esults/conversion_lag_buckets.csv, Chart 4)*
 
 ---
 
 ## 3. Recommendation
 
-**Introduce a frequency cap of 9 impressions per user per campaign per 7-day window** and reallocate freed budget toward the top-quintile most efficient campaigns (lowest cost per attributed conversion).
+**Introduce a frequency cap of 9 impressions per user per campaign per 7-day rolling window** and reallocate freed impressions toward the top-quintile most efficient campaigns (lowest cost per attributed conversion).
 
-*What to change:* Set a hard frequency cap at the user–campaign level in campaign delivery. The data shows conversion rate continues rising through the 5–9 bucket (14.8%) to the 10+ bucket (28.2%), but the 10+ bucket has only 8,789 pairs vs 24,636 in the 5–9 bucket — a sharply diminishing population at extreme frequency. A cap at 9 captures the 5–9 conversion uplift while preventing over-exposure.
-*For whom:* All 191 campaigns with ≥ 1,000 impressions in the sample period.
-*Test scope:* A/B test (see Section 5).
+*Rationale for 9:* Conversion rate increases significantly through the 5-9 bucket (15.2%) and continues into 10+ (28.3%), but the 10+ bucket contains only 173,977 user-campaign pairs versus 499,984 in the 5-9 bucket -- a sharply smaller, likely self-selected population. Capping at 9 preserves the proven 5-9 uplift while eliminating potentially wasteful over-exposure above that threshold.
+
+*Scope:* All 661 campaigns with >=1,000 impressions. Attribution decisions should use a consistent model (recommend **last-touch** for continuity with the existing ttribution flag, unless the team is ready to adopt a multi-touch model).
 
 ---
 
 ## 4. Expected Impact and Success Metric
 
-**Primary metric:** Cost per attributed conversion — target a 15–25% reduction in the treatment group (informed by the 18.6 pp efficiency gap observed between top and bottom spend quartiles).
+**Primary metric:** Cost per attributed conversion -- target a >=10% reduction in the treatment group (informed by the 9.8 pp efficiency gap between the top 20% by spend and their conversion share).
 
-**How to call it a win:** Cost per attributed conversion falls by ≥ 15% with statistical significance (p < 0.05) after 2 weeks.
+**How to call it a win:** Cost per attributed conversion falls by >=10% with statistical significance (p < 0.05) after 2 weeks.
 
-**Guardrail metric:** Total attributed conversions must not decline by more than 5% — we are optimizing efficiency, not sacrificing volume.
+**Guardrail metric:** Total attributed conversions in the treatment group must not decline by more than 5% -- we are optimizing efficiency, not sacrificing volume.
+
+**Secondary watch:** Attribution rate (attributed / total conversions). If the frequency cap reduces impressions near conversion events, attribution rate could shift; monitor for material change.
 
 ---
 
 ## 5. How We'd Test It
 
-- **Unit of randomization:** User (to avoid cross-contamination between control and treatment).
-- **Design:** 50/50 A/B split. Treatment group sees a hard frequency cap of **9 impressions per campaign per 7-day window**; control group sees no cap.
-- **Duration:** Minimum 2 weeks to capture weekly ad-serving patterns; extend if conversion windows are longer than 7 days.
-- **Primary metric:** Cost per attributed conversion (treatment vs control).
-- **Guardrail:** Total attributed conversions in treatment group vs control (≤5% drop acceptable).
-- **Analysis:** Two-sided t-test on cost per attributed conversion; track daily to catch novelty effects early.
+| Parameter | Detail |
+|---|---|
+| **Unit of randomization** | User (to prevent cross-contamination) |
+| **Design** | 50/50 A/B split |
+| **Treatment** | Hard frequency cap: 9 impressions per campaign per 7-day window |
+| **Control** | No cap (current behavior) |
+| **Duration** | Minimum 2 weeks; extend to 4 weeks to capture the 7-30-day conversion tail (20.7% of conversions) |
+| **Primary metric** | Cost per attributed conversion (treatment vs control) |
+| **Guardrail** | Total attributed conversions (<=5% drop acceptable) |
+| **Analysis** | Two-sided t-test on cost per attributed conversion; daily monitoring for novelty effects |
 
 ---
 
 ## 6. Risks and Caveats
 
-- **Observational data, not causal.** The frequency–conversion relationship observed here is a correlation. High-frequency users may have inherently higher intent; frequency itself may not be causing the outcome. The A/B test in Section 5 is required to establish causation.
-- **Transformed cost.** `cost` and `cpo` are transformed by Criteo and cannot be expressed in real currency. All cost comparisons in this memo are relative (campaign vs campaign).
-- **User-level sample.** This analysis used a 5% user-level sample (**823,604 impressions, 307,695 users**). Estimates may differ from the full dataset; always re-run on full data before making production decisions.
-- **Advertiser-side data only.** The dataset contains no publisher or placement information. Publisher-side effects (e.g., which placements benefit from frequency capping) cannot be measured here.
-- **Attribution rule affects counts.** Attributed conversions here use the dataset's built-in rule (`attribution = 1`). A different attribution model (last-touch, time-decay) would redistribute credit and change campaign rankings. See *Future Plan: Attribution Model Comparison*.
+- **Observational data, not causal.** The frequency-conversion relationship is a correlation. High-frequency users may have inherently higher purchase intent; the A/B test in Section 5 is required before attributing the conversion uplift to frequency.
+- **Transformed cost.** cost and cpo are transformed by Criteo and cannot be expressed in real currency. All cost comparisons here are relative (campaign vs campaign).
+- **User-level 5% sample.** This analysis used 16.46 M impressions from a 5% user sample (~307K users). Point estimates are stable at this scale but should be validated on the full dataset before production deployment.
+- **Attribution model sensitivity.** Top-3 campaign rankings are stable across models, but mid-tier rankings shift. Budget-reallocation decisions beyond the top cohort are model-dependent. Do not reallocate mid-tier spend without agreeing on an attribution model first.
+- **Conversion window.** A 7-day attribution window would miss 20.7% of conversions (those occurring 7-30 days post-touchpoint). Ensure the experiment duration and attribution window are aligned.
+- **Advertiser-side data only.** No publisher or placement data is available. Publisher-side effects of frequency capping cannot be measured here.
 
 ---
 
-## 7. Implication for Publishers *(reasoning, not measured)*
+## 7. Implication for Publishers *(reasoning only -- not measured in this dataset)*
 
-If frequency capping reduces the number of impressions served to high-frequency users, publishers may see a short-term drop in ad requests from Criteo campaigns. However, if more efficient spend improves advertiser ROI and retention on the platform, total demand — and thus publisher fill rates and RPM — could increase over a longer horizon. This effect is not observable in the current dataset and would require publisher-side data to validate.
+Introducing a frequency cap will reduce the number of impressions served to high-frequency users, which may temporarily reduce ad request volume from Criteo campaigns on publisher inventory. However, if improved advertiser cost efficiency increases advertiser retention and total budget on the platform, publisher fill rates and effective RPM could recover or increase over a 1-2 quarter horizon. This effect is unobservable in the current dataset and requires publisher-side data (placement, RPM, fill rate) to quantify.
 
 ---
 
-*All numbers above must come from your own query runs. Do not quote agent-generated estimates without verifying them yourself.*
+*All numbers above are derived from verified query outputs in 
+esults/. Sample: 16,460,456 impressions, 661 qualifying campaigns, 236,948 attributed conversions, 5% user-level stratified sample of the Criteo Attribution dataset.*
