@@ -28,7 +28,7 @@ The findings are synthesized into a one-page product memo with a concrete recomm
 **Key facts:**
 - One row per ad impression, sorted by timestamp, spanning ~30 days of live Criteo traffic
 - This project uses a **5% user-level sample** (`hash(uid) % 20 = 0`), keeping each user's full journey intact
-- Final sample: **823,604 impressions** across **307,695 users** and **191 qualifying campaigns** (≥1,000 impressions)
+- Final sample: **16,460,456 impressions** across **~307,695 users** and **661 qualifying campaigns** (≥1,000 impressions)
 
 **Important caveats:**
 - `cost` and `cpo` columns are **transformed by Criteo** — not real currency. All cost comparisons are relative.
@@ -55,28 +55,26 @@ Each analysis step is a versioned SQL file in `sql/`. Results are saved to `resu
 
 ## Key Findings
 
-> **Fill in after running your queries.** Replace bracketed placeholders with real numbers from your CSV outputs. Charts are embedded below once generated.
-
 ### Finding 1 — Spend concentration without conversion payoff
 ![Cost per attributed conversion by campaign](charts/01_cost_per_conv.png)
 
-The top 20% of campaigns by spend (38 of 191) account for **60.3% of total transformed cost** but deliver only **41.7% of attributed conversions** — an 18.6 percentage-point efficiency gap. The least efficient campaign costs **1,212× more** per attributed conversion than the most efficient.
+The top 20% of campaigns by spend (132 of 661) account for **72.6% of total transformed cost** but deliver only **62.8% of attributed conversions** — a **9.8 percentage-point efficiency gap**. The least efficient campaign costs **1,413× more** per attributed conversion than the most efficient (transformed cost; relative comparison only).
 
-### Finding 2 — Funnel: only 53% of conversions are attributed to Criteo
+### Finding 2 — Attribution model stable at the top, reshuffles mid-tier; 54% attribution rate
 ![Post-click vs post-view conversions by campaign](charts/05_click_vs_view.png)
 
-Across the 191 qualifying campaigns: 17,175 total conversions, of which **9,159 (53.3%) are attributed to Criteo**. All conversions in this dataset occurred with a click in the attribution path (`share_conversions_with_click = 100%`), confirming Criteo's last-click attribution rule.
+Across the 661 qualifying campaigns: 438,275 total conversions, of which **236,948 (54.1%) are attributed to Criteo**. All conversions occurred with a click in the attribution path (`share_conversions_with_click = 100%`), confirming last-click attribution. The top 3 campaigns by credit are **stable across all four attribution models** (last-touch, first-touch, linear, time-decay); mid-tier campaign rankings (4–50) shift materially depending on model choice.
 
-### Finding 3 — Strong frequency-conversion relationship (correlation)
+### Finding 3 — Strong frequency–conversion correlation; 38.9% of conversions within 1 hour
 ![Conversion rate by frequency bucket](charts/04_frequency.png)
 
-Users who saw a campaign's ads **10+ times** converted at **28.2%**, vs **1.6%** for users who saw just 1 ad — a **17.5× difference**. However, heavy-exposure users may have higher intent regardless of ad volume.
+Conversion rate rises monotonically with frequency: **1.6%** (1 impression) → **4.4%** (2) → **8.2%** (3–4) → **15.2%** (5–9) → **28.3%** (10+) — a 17.5× spread. Selection bias is likely: heavy-exposure users may have higher purchase intent independent of ad volume. Separately, **38.9% of conversions occur within 1 hour** of the last touchpoint; 20.7% take 7–30 days, implying a 30-day attribution window is needed to capture all meaningful conversion activity.
 
 ---
 
 ## Recommendation
 
-Cap ad frequency at **10 impressions per user per campaign per 7-day window** and reallocate freed budget to the most efficient campaigns. See [`docs/memo.md`](docs/memo.md) for the full memo including test design and caveats.
+Cap ad frequency at **9 impressions per user per campaign per 7-day window** and reallocate freed impressions toward the top-quintile most efficient campaigns (lowest cost per attributed conversion). See [`docs/memo.md`](docs/memo.md) for the full memo including A/B test design, expected impact (≥10% reduction in cost per attributed conversion), and caveats.
 
 ---
 
