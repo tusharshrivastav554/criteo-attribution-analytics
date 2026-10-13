@@ -27,8 +27,8 @@ The findings are synthesized into a one-page product memo with a concrete recomm
 
 **Key facts:**
 - One row per ad impression, sorted by timestamp, spanning ~30 days of live Criteo traffic
-- This project uses a **5% user-level sample** (`hash(uid) % 20 = 0`), keeping each user's full journey intact
-- Final sample: **16,460,456 impressions** across **~307,695 users** and **661 qualifying campaigns** (≥1,000 impressions)
+- **Full dataset:** all 16,468,027 impressions across 6,142,256 users (the `WHERE hash(uid) % 20 = 0` sampling clause was removed for this run to maximize statistical power)
+- Final sample: **16,468,027 impressions**, **6,142,256 users**, **661 qualifying campaigns** (≥1,000 impressions; 675 total campaigns in the data)
 
 **Important caveats:**
 - `cost` and `cpo` columns are **transformed by Criteo** — not real currency. All cost comparisons are relative.
@@ -60,15 +60,15 @@ Each analysis step is a versioned SQL file in `sql/`. Results are saved to `resu
 
 The top 20% of campaigns by spend (132 of 661) account for **72.6% of total transformed cost** but deliver only **62.8% of attributed conversions** — a **9.8 percentage-point efficiency gap**. The least efficient campaign costs **1,413× more** per attributed conversion than the most efficient (transformed cost; relative comparison only).
 
-### Finding 2 — Attribution model stable at the top, reshuffles mid-tier; 54% attribution rate
+### Finding 2 — 54% attribution rate; top-3 campaigns stable across all attribution models
 ![Post-click vs post-view conversions by campaign](charts/05_click_vs_view.png)
 
-Across the 661 qualifying campaigns: 438,275 total conversions, of which **236,948 (54.1%) are attributed to Criteo**. All conversions occurred with a click in the attribution path (`share_conversions_with_click = 100%`), confirming last-click attribution. The top 3 campaigns by credit are **stable across all four attribution models** (last-touch, first-touch, linear, time-decay); mid-tier campaign rankings (4–50) shift materially depending on model choice.
+Across the 661 qualifying campaigns: 438,275 total conversions, of which **236,948 (54.1%) are attributed to Criteo**. All conversions in this dataset had a click somewhere in the user's path to conversion — consistent with a last-click rule, though the dataset does not document the exact attribution logic. The top 3 campaigns by credit are **stable across all four attribution models** (last-touch, first-touch, linear, time-decay); mid-tier campaign rankings (4–50) shift materially depending on model choice.
 
 ### Finding 3 — Strong frequency–conversion correlation; 38.9% of conversions within 1 hour
 ![Conversion rate by frequency bucket](charts/04_frequency.png)
 
-Conversion rate rises monotonically with frequency: **1.6%** (1 impression) → **4.4%** (2) → **8.2%** (3–4) → **15.2%** (5–9) → **28.3%** (10+) — a 17.5× spread. Selection bias is likely: heavy-exposure users may have higher purchase intent independent of ad volume. Separately, **38.9% of conversions occur within 1 hour** of the last touchpoint; 20.7% take 7–30 days, implying a 30-day attribution window is needed to capture all meaningful conversion activity.
+Conversion rate rises monotonically with frequency: **1.6%** (1 impression) → **4.4%** (2) → **8.2%** (3–4) → **15.2%** (5–9) → **28.3%** (10+) — a 17.5× spread. Selection bias is likely: heavy-exposure users may have higher purchase intent independent of ad volume. Separately, **38.9% of conversions occur within 1 hour** of the last touchpoint; 20.7% take 7–30 days — the memo's A/B test is designed to run for 4 weeks to capture this full conversion tail.
 
 ---
 
@@ -81,9 +81,9 @@ Cap ad frequency at **9 impressions per user per campaign per 7-day window** and
 ## Limitations
 
 1. **Observational data.** All findings are correlations. The frequency–conversion relationship is confounded by user intent. An A/B frequency-cap experiment (described in the memo) is needed to establish causation.
-2. **5% sample.** Point estimates may differ from the full dataset. Re-run on full data before production decisions.
+2. **Full dataset, no sampling.** This run used the complete Criteo dataset (16.47M impressions). The 5% sampling clause (`WHERE hash(uid) % 20 = 0`) is restored in `sql/01_load_sample.sql` for reproducibility; remove it to reproduce this full-data run.
 3. **Transformed cost.** No absolute monetary conclusions can be drawn.
-4. **Single attribution rule.** The `attribution = 1` flag uses Criteo's own rule. The attribution model comparison (SQL 07) shows how last-touch, first-touch, linear, and time-decay rules shift campaign rankings.
+4. **Attribution model sensitivity.** Top-3 campaign rankings are stable across last-touch, first-touch, linear, and time-decay models. Mid-tier rankings shift; budget reallocation beyond the top cohort is model-dependent.
 5. **No publisher data.** Publisher-side effects of any recommendation cannot be measured here.
 
 ---

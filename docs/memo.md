@@ -19,12 +19,12 @@ The top 20% of campaigns by spend (132 of 661) account for **72.6% of total tran
 esults/campaign_performance.csv, Charts 1 & 2)*
 
 **Finding 2 -- Attribution model is robust at the top, but reshuffles mid-tier**
-The dataset covers **16.46 M impressions** yielding **236,948 attributed conversions** out of 438,275 total conversions (**54.1% attribution rate**). The top 3 campaigns by credit are stable across all four attribution models (last-touch, first-touch, linear, time-decay), suggesting the top cohort is genuinely high-performing. However, mid-tier campaigns (ranks 4-50) shift materially between models, meaning spend-reallocation decisions are sensitive to the attribution rule chosen. All conversions in this dataset had a click in the attribution path (share_conversions_with_click = 100%), confirming last-click attribution. *(Source: 
+The dataset covers **16.46 M impressions** yielding **236,948 attributed conversions** out of 438,275 total conversions (**54.1% attribution rate**). The top 3 campaigns by credit are stable across all four attribution models (last-touch, first-touch, linear, time-decay), suggesting the top cohort is genuinely high-performing. However, mid-tier campaigns (ranks 4-50) shift materially between models, meaning spend-reallocation decisions are sensitive to the attribution rule chosen. All conversions in this dataset had a click somewhere in the path to conversion (share_conversions_with_click = 100%) -- consistent with a last-click rule, though the dataset does not document the exact attribution logic. *(Source: 
 esults/attribution_model_comparison.csv, 
 esults/funnel_by_campaign.csv)*
 
 **Finding 3 -- Strong frequency-conversion correlation; 38.9% of conversions occur within 1 hour**
-Conversion rate rises monotonically with frequency: **1.6%** (1 impression) -> **4.4%** (2) -> **8.2%** (3-4) -> **15.2%** (5-9) -> **28.3%** (10+) -- a 17.5x spread. Selection bias is likely: heavy-exposure users may have higher purchase intent independent of ad volume. Separately, **38.9% of conversions occur within 1 hour** of the last touchpoint, 77.1% within 3 days, and 20.7% take 7-30 days. A 7-day attribution window would miss roughly 1 in 5 conversions. *(Source: 
+Conversion rate rises monotonically with frequency: **1.6%** (1 impression) -> **4.4%** (2) -> **8.2%** (3-4) -> **15.2%** (5-9) -> **28.3%** (10+) -- a 17.5x spread. Selection bias is likely: heavy-exposure users may have higher purchase intent independent of ad volume. Separately, **38.9% of conversions occur within 1 hour** of the last touchpoint, 77.1% within 3 days, and 20.7% take 7-30 days. The memo A/B test runs for 4 weeks specifically to capture this full conversion tail; a shorter window would miss ~20% of conversions. *(Source: 
 esults/frequency_buckets.csv, 
 esults/conversion_lag_buckets.csv, Chart 4)*
 
@@ -71,9 +71,9 @@ esults/conversion_lag_buckets.csv, Chart 4)*
 
 - **Observational data, not causal.** The frequency-conversion relationship is a correlation. High-frequency users may have inherently higher purchase intent; the A/B test in Section 5 is required before attributing the conversion uplift to frequency.
 - **Transformed cost.** cost and cpo are transformed by Criteo and cannot be expressed in real currency. All cost comparisons here are relative (campaign vs campaign).
-- **User-level 5% sample.** This analysis used 16.46 M impressions from a 5% user sample (~307K users). Point estimates are stable at this scale but should be validated on the full dataset before production deployment.
+- **Full dataset used.** This analysis used the complete Criteo dataset -- 16,468,027 impressions across 6,142,256 users (the sampling clause was removed for this run). Results reflect the full 30-day traffic, not an estimate.
 - **Attribution model sensitivity.** Top-3 campaign rankings are stable across models, but mid-tier rankings shift. Budget-reallocation decisions beyond the top cohort are model-dependent. Do not reallocate mid-tier spend without agreeing on an attribution model first.
-- **Conversion window.** A 7-day attribution window would miss 20.7% of conversions (those occurring 7-30 days post-touchpoint). Ensure the experiment duration and attribution window are aligned.
+- **Conversion window.** 20.7% of conversions occur 7-30 days after the last touchpoint. The test is designed to run 4 weeks to capture this tail; ensure the attribution window matches the experiment duration.
 - **Advertiser-side data only.** No publisher or placement data is available. Publisher-side effects of frequency capping cannot be measured here.
 
 ---
@@ -84,5 +84,4 @@ Introducing a frequency cap will reduce the number of impressions served to high
 
 ---
 
-*All numbers above are derived from verified query outputs in 
-esults/. Sample: 16,460,456 impressions, 661 qualifying campaigns, 236,948 attributed conversions, 5% user-level stratified sample of the Criteo Attribution dataset.*
+*All numbers above are derived from verified query outputs in `results/`. Full dataset run: 16,468,027 impressions, 6,142,256 users, 661 qualifying campaigns (>=1,000 impressions), 236,948 attributed conversions. The 5% sampling clause is restored in `sql/01_load_sample.sql`; remove the WHERE clause to reproduce this full-data run.*
