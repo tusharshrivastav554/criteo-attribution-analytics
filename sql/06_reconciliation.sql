@@ -25,7 +25,8 @@ SELECT
     s.campaign,
     SUM(s.cost)                                                         AS staging_total_cost,
     r.total_cost                                                        AS table_total_cost,
-    COUNT(DISTINCT CASE WHEN s.attribution = 1 THEN s.conversion_id END) AS staging_attr_conv,
+    COUNT(DISTINCT CASE WHEN s.attribution = 1 AND s.conversion_id IS NOT NULL
+                        THEN s.conversion_id END)                        AS staging_attr_conv,
     r.attributed_conversions                                            AS table_attr_conv
 FROM stg_events s
 JOIN res_campaign r USING (campaign)
@@ -45,7 +46,17 @@ WHERE f.attributed_conversions <> c.attributed_conversions
 ORDER BY ABS(diff) DESC
 LIMIT 10;
 
--- ─── Check 5: Frequency table pair counts sum to total user-campaign pairs ───
+-- ─── Check 5: Campaign credit vs global conversion count ─────────────────────
+-- A conversion may be credited to multiple campaigns.  Keep the two measures
+-- explicit so campaign credit is not mistaken for a global conversion total.
+SELECT
+    COUNT(DISTINCT CASE WHEN s.attribution = 1 AND s.conversion_id IS NOT NULL
+                        THEN s.conversion_id END) AS global_attr_conversions,
+    (SELECT SUM(attributed_conversions) FROM res_campaign) AS campaign_attr_credit
+FROM stg_events s
+;
+
+-- ─── Check 6: Frequency table pair counts sum to total user-campaign pairs ───
 SELECT
     (SELECT SUM(user_campaign_pairs) FROM res_frequency)          AS freq_table_pairs,
     (SELECT COUNT(DISTINCT uid || '-' || CAST(campaign AS VARCHAR))

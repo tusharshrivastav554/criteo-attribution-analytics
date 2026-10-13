@@ -13,6 +13,7 @@ If a multi-statement file errors in Python, run it directly:
 """
 
 import io
+import argparse
 import pathlib
 import sys
 
@@ -24,14 +25,19 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="repla
 
 DB_PATH = "criteo.duckdb"
 SQL_DIR = pathlib.Path("sql")
+SAMPLE_MARKER = "/* SAMPLE_USERS_FILTER */"
 
 
-def run_file(con: duckdb.DuckDBPyConnection, path: pathlib.Path) -> None:
+def run_file(
+    con: duckdb.DuckDBPyConnection,
+    path: pathlib.Path,
+    sql_override: str | None = None,
+) -> None:
     """Execute all statements in a SQL file and print results."""
     print(f"\n{'='*60}")
     print(f"Running {path.name}")
     print("=" * 60)
-    sql = path.read_text(encoding="utf-8")
+    sql = sql_override if sql_override is not None else path.read_text(encoding="utf-8")
 
     # Robust split: strip the "-- comment" tail of each line before splitting on ';'
     # This prevents semicolons inside inline comments from breaking statements.
@@ -72,6 +78,13 @@ def run_file(con: duckdb.DuckDBPyConnection, path: pathlib.Path) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the DuckDB attribution pipeline.")
+    parser.add_argument(
+        "--sample-users",
+        action="store_true",
+        help="Restrict the load step to a deterministic 5%% user sample.",
+    )
+    args = parser.parse_args()
     con = duckdb.connect(DB_PATH)
     sql_files = sorted(SQL_DIR.glob("0*.sql"))
     if not sql_files:
@@ -79,7 +92,13 @@ def main() -> None:
         sys.exit(1)
 
     for f in sql_files:
-        run_file(con, f)
+        sql_override = None
+        if f.name == "01_load_sample.sql":
+            sql_override = f.read_text(encoding="utf-8").replace(
+                SAMPLE_MARKER,
+                "AND hash(uid) % 20 = 0" if args.sample_users else "",
+            )
+        run_file(con, f, sql_override=sql_override)
 
     print("\n✓ All SQL scripts completed successfully.")
     con.close()

@@ -24,6 +24,7 @@ conv AS (
         MAX(click)       AS had_click   -- 1 if any impression in this path was clicked
     FROM stg_events
     WHERE conversion_id IS NOT NULL
+      AND conversion_id > 0
     GROUP BY campaign, conversion_id
 ),
 conv_agg AS (

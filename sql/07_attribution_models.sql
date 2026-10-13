@@ -26,7 +26,9 @@ SELECT
     MAX(ts)       OVER (PARTITION BY conversion_id)                  AS last_touch_ts,
     MIN(ts)       OVER (PARTITION BY conversion_id)                  AS first_touch_ts
 FROM stg_events
-WHERE conversion_id IS NOT NULL;
+WHERE conversion_id IS NOT NULL
+  AND conversion_id > 0
+  AND conversion_ts IS NOT NULL;
 
 SELECT COUNT(*) AS touchpoints_in_paths,
        COUNT(DISTINCT conversion_id) AS conversions_in_paths,
@@ -48,9 +50,9 @@ SELECT
     CASE WHEN touch_seq = 1           THEN 1.0 ELSE 0.0 END  AS w_first,
     -- Linear: equal split
     1.0 / path_length                                          AS w_linear,
-    -- Time-decay: half-life 7 days; normalised within each conversion
-    EXP(-(last_touch_ts - ts) / 604800.0) /
-        SUM(EXP(-(last_touch_ts - ts) / 604800.0))
+    -- Time-decay: true seven-day half-life; normalised within each conversion
+    EXP(-LN(2) * (last_touch_ts - ts) / 604800.0) /
+        SUM(EXP(-LN(2) * (last_touch_ts - ts) / 604800.0))
             OVER (PARTITION BY conversion_id)                  AS w_timedecay
 FROM attr_paths;
 

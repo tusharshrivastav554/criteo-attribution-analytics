@@ -11,17 +11,22 @@
 -- ============================================================
 
 -- Step 1: Impression-to-conversion lag distribution.
+-- Reduce to one row per conversion: lag uses the last impression timestamp.
 CREATE OR REPLACE TABLE res_conversion_lag AS
-WITH lags AS (
+WITH conversion_level AS (
     SELECT
         conversion_id,
-        campaign,
-        click,
-        (conversion_ts - ts) AS lag_seconds
+        MAX(conversion_ts) AS conversion_ts,
+        MAX(ts) AS last_impression_ts
     FROM stg_events
     WHERE conversion_id IS NOT NULL
+      AND conversion_id > 0
       AND conversion_ts IS NOT NULL
-      AND (conversion_ts - ts) >= 0
+    GROUP BY conversion_id
+), lags AS (
+    SELECT conversion_id, conversion_ts - last_impression_ts AS lag_seconds
+    FROM conversion_level
+    WHERE conversion_ts >= last_impression_ts
 )
 SELECT
     CASE
@@ -33,8 +38,7 @@ SELECT
         WHEN lag_seconds <=    30 * 86400 THEN '6. 14d-30d'
         ELSE                                   '7. gt30d'
     END                                AS lag_bucket,
-    COUNT(DISTINCT conversion_id)      AS conversions,
-    COUNT(*)                           AS touchpoints,
+    COUNT(*)                           AS conversions,
     ROUND(AVG(lag_seconds) / 3600, 2)  AS avg_lag_hours,
     ROUND(MIN(lag_seconds) / 3600, 2)  AS min_lag_hours,
     ROUND(MAX(lag_seconds) / 3600, 2)  AS max_lag_hours
@@ -45,16 +49,20 @@ ORDER BY 1;
 COPY res_conversion_lag TO 'results/conversion_lag_buckets.csv' (HEADER, DELIMITER ',');
 
 -- Step 2: Click-to-conversion lag.
--- time_since_last_click is pre-nullified in stg_events.
+-- Reduce click lag to one row per conversion using its last clicked impression.
 CREATE OR REPLACE TABLE res_click_to_conv_lag AS
 WITH click_lags AS (
-    SELECT DISTINCT
+    SELECT
         conversion_id,
-        time_since_last_click / 3600.0 AS hours_since_last_click
+        (MAX(conversion_ts) - MAX(CASE WHEN click = 1 THEN ts END)) / 3600.0
+            AS hours_since_last_click
     FROM stg_events
     WHERE conversion_id IS NOT NULL
-      AND time_since_last_click IS NOT NULL
-      AND time_since_last_click > 0
+      AND conversion_id > 0
+      AND conversion_ts IS NOT NULL
+    GROUP BY conversion_id
+    HAVING MAX(CASE WHEN click = 1 THEN ts END) IS NOT NULL
+       AND MAX(conversion_ts) > MAX(CASE WHEN click = 1 THEN ts END)
 )
 SELECT
     CASE
@@ -73,12 +81,17 @@ COPY res_click_to_conv_lag TO 'results/click_to_conv_lag.csv' (HEADER, DELIMITER
 
 -- Step 3: Percentile summary for the memo.
 SELECT
-    ROUND(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY (conversion_ts - ts)) / 3600.0, 2) AS p25_hours,
-    ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY (conversion_ts - ts)) / 3600.0, 2) AS p50_hours,
-    ROUND(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY (conversion_ts - ts)) / 3600.0, 2) AS p75_hours,
-    ROUND(PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY (conversion_ts - ts)) / 3600.0, 2) AS p90_hours,
-    COUNT(DISTINCT conversion_id) AS total_conversions
-FROM stg_events
-WHERE conversion_id IS NOT NULL
-  AND conversion_ts IS NOT NULL
-  AND (conversion_ts - ts) >= 0;
+    ROUND(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY lag_seconds) / 3600.0, 2) AS p25_hours,
+    ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY lag_seconds) / 3600.0, 2) AS p50_hours,
+    ROUND(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY lag_seconds) / 3600.0, 2) AS p75_hours,
+    ROUND(PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY lag_seconds) / 3600.0, 2) AS p90_hours,
+    COUNT(*) AS total_conversions
+FROM (
+    SELECT conversion_id, MAX(conversion_ts) - MAX(ts) AS lag_seconds
+    FROM stg_events
+    WHERE conversion_id IS NOT NULL
+      AND conversion_id > 0
+      AND conversion_ts IS NOT NULL
+    GROUP BY conversion_id
+    HAVING MAX(conversion_ts) >= MAX(ts)
+) conversion_lags;

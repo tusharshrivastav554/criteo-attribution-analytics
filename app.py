@@ -92,7 +92,7 @@ if df_camp is not None:
 
     c1, c2, c3, c4 = st.columns(4)
     kpis = [
-        (c1, f"{total_impr:,}",    "Impressions (5 % sample)"),
+        (c1, f"{total_impr:,}",    "Impressions (full run)"),
         (c2, f"{n_campaigns}",     "Campaigns (≥1 000 impr.)"),
         (c3, f"{total_conv:,}",    "Attributed Conversions"),
         (c4, f"{avg_cpac:.5f}",    "Avg Cost / Attr. Conv."),
@@ -179,7 +179,7 @@ for i, (icon, name, desc) in enumerate(pages):
 
 st.markdown("&nbsp;")
 st.caption(
-    "**Data:** Criteo Attribution Modeling Dataset — 5 % user sample, ~30 days of live traffic &nbsp;|&nbsp; "
+    "**Data:** Criteo Attribution Modeling Dataset — full 30-day traffic run &nbsp;|&nbsp; "
     "**Engine:** DuckDB &nbsp;|&nbsp; "
     "**License:** check Criteo dataset page and credit Criteo in any public use."
 )

@@ -1,6 +1,6 @@
 # Ad Campaign Performance and Attribution Analytics (Criteo, DuckDB)
 
-> Analyzing a user-level sample of real display-ad data to find which campaigns waste spend, where the funnel leaks, how conversion changes with ad frequency, and how attribution model choice reshapes campaign rankings — synthesized into a product memo and an interactive Streamlit dashboard.
+> Analyzing the full Criteo Attribution Modeling for Bidding dataset (16.5M impressions, 6.1M users) to find which campaigns waste spend, where the funnel leaks, how conversion changes with ad frequency, and how attribution model choice reshapes campaign rankings — synthesized into a product memo and an interactive Streamlit dashboard.
 
 ---
 
@@ -27,22 +27,22 @@ The findings are synthesized into a one-page product memo with a concrete recomm
 
 **Key facts:**
 - One row per ad impression, sorted by timestamp, spanning ~30 days of live Criteo traffic
-- **Full dataset:** all 16,468,027 impressions across 6,142,256 users (the `WHERE hash(uid) % 20 = 0` sampling clause was removed for this run to maximize statistical power)
-- Final sample: **16,468,027 impressions**, **6,142,256 users**, **661 qualifying campaigns** (≥1,000 impressions; 675 total campaigns in the data)
+- **Full dataset by default:** all 16,468,027 impressions across 6,142,256 users. Use `--sample-users` when a deterministic 5% user sample is explicitly desired.
+- Full run: **16,468,027 impressions**, **6,142,256 users**, **675 campaigns**; the analysis output retains **661 qualifying campaigns** (≥1,000 impressions)
 
 **Important caveats:**
 - `cost` and `cpo` columns are **transformed by Criteo** — not real currency. All cost comparisons are relative.
 - `cat1`–`cat9` are anonymized categorical features with unknown meaning; not interpreted here.
 - Data is **advertiser-side only** — no publisher or placement information.
 
-**License:** Check the [dataset page](https://huggingface.co/datasets/criteo/criteo-attribution-dataset) for current terms before use. Credit Criteo in any public work.
+**License:** [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) (non-commercial, share-alike). Attribution required: Eustache Diemert, Julien Meynet, Pierre Galland, Damien Lefortier. *Attribution Modeling Increases Efficiency of Bidding in Display Advertising.* ADKDD'17.
 
 ---
 
 ## Approach
 
 ```
-Download TSV.gz → Load 5% user sample (DuckDB) → Stage + clean NULLs
+Load full dataset (DuckDB) → Stage + clean NULLs
     → Spend efficiency analysis → Funnel analysis → Frequency analysis
     → Attribution model comparison → Conversion lag analysis
     → Reconciliation checks → Charts → Budget simulation → Product memo
@@ -58,17 +58,17 @@ Each analysis step is a versioned SQL file in `sql/`. Results are saved to `resu
 ### Finding 1 — Spend concentration without conversion payoff
 ![Cost per attributed conversion by campaign](charts/01_cost_per_conv.png)
 
-The top 20% of campaigns by spend (132 of 661) account for **72.6% of total transformed cost** but deliver only **62.8% of attributed conversions** — a **9.8 percentage-point efficiency gap**. The least efficient campaign costs **1,413× more** per attributed conversion than the most efficient (transformed cost; relative comparison only).
+The top 20% of qualifying campaigns by spend (132 of 661) account for **72.8% of transformed cost** but deliver **62.9% of campaign-attributed conversion credit** — a **9.9 percentage-point efficiency gap**. This spend-versus-credit gap is the stronger signal than a best-to-worst campaign cost-per-conversion ratio, which is highly sensitive to low-volume campaigns (transformed cost; relative comparison only).
 
 ### Finding 2 — 54% attribution rate; top-3 campaigns stable across all attribution models
 ![Post-click vs post-view conversions by campaign](charts/05_click_vs_view.png)
 
-Across the 661 qualifying campaigns: 438,275 total conversions, of which **236,948 (54.1%) are attributed to Criteo**. All conversions in this dataset had a click somewhere in the user's path to conversion — consistent with a last-click rule, though the dataset does not document the exact attribution logic. The top 3 campaigns by credit are **stable across all four attribution models** (last-touch, first-touch, linear, time-decay); mid-tier campaign rankings (4–50) shift materially depending on model choice.
+Across the full dataset there are **435,810 distinct conversion IDs**, of which **236,331 (54.2%) are attributed to Criteo**. The 661 qualifying campaigns receive **236,948 campaign-level attribution credits** because a small number of conversion paths touch more than one campaign; campaign shares therefore use campaign credit, while the portfolio attribution rate uses unique conversion IDs. All conversions in this dataset had a click somewhere in the user's path to conversion — consistent with a last-click rule, though the dataset does not document the exact attribution logic. The top 3 campaigns by credit are **stable across all four attribution models** (last-touch, first-touch, linear, time-decay); mid-tier campaign rankings (4–50) shift materially depending on model choice.
 
 ### Finding 3 — Strong frequency–conversion correlation; 38.9% of conversions within 1 hour
 ![Conversion rate by frequency bucket](charts/04_frequency.png)
 
-Conversion rate rises monotonically with frequency: **1.6%** (1 impression) → **4.4%** (2) → **8.2%** (3–4) → **15.2%** (5–9) → **28.3%** (10+) — a 17.5× spread. Selection bias is likely: heavy-exposure users may have higher purchase intent independent of ad volume. Separately, **38.9% of conversions occur within 1 hour** of the last touchpoint; 20.7% take 7–30 days — the memo's A/B test is designed to run for 4 weeks to capture this full conversion tail.
+Conversion rate rises monotonically with frequency: **1.6%** (1 impression) → **4.4%** (2) → **8.2%** (3–4) → **15.2%** (5–9) → **28.3%** (10+) — a 17.5× spread. Selection bias is likely: heavy-exposure users may have higher purchase intent independent of ad volume. After collapsing each conversion ID to one record and measuring from its last impression, **38.9% of conversions occur within 1 hour** and **62.7% within 3 days**. The remaining conversions extend through the observed 30-day dataset window.
 
 ---
 
@@ -81,10 +81,11 @@ Cap ad frequency at **9 impressions per user per campaign per 7-day window** and
 ## Limitations
 
 1. **Observational data.** All findings are correlations. The frequency–conversion relationship is confounded by user intent. An A/B frequency-cap experiment (described in the memo) is needed to establish causation.
-2. **Full dataset, no sampling.** This run used the complete Criteo dataset (16.47M impressions). The 5% sampling clause (`WHERE hash(uid) % 20 = 0`) is restored in `sql/01_load_sample.sql` for reproducibility; remove it to reproduce this full-data run.
+2. **Full dataset by default.** This run used all **16,468,027 impressions**, **6,142,256 users**, and 675 campaigns. The reported campaign tables retain the 661 campaigns with at least 1,000 impressions, which contain **16,460,456 impressions**. Use `python run_all.py --sample-users` only when a deterministic 5% user sample is explicitly desired.
 3. **Transformed cost.** No absolute monetary conclusions can be drawn.
 4. **Attribution model sensitivity.** Top-3 campaign rankings are stable across last-touch, first-touch, linear, and time-decay models. Mid-tier rankings shift; budget reallocation beyond the top cohort is model-dependent.
 5. **No publisher data.** Publisher-side effects of any recommendation cannot be measured here.
+6. **Upstream conversion-count discrepancy.** The downloaded database contains 435,810 distinct positive `conversion_id` values, while the upstream dataset README says approximately 45K conversions. This project reports the observed conversion IDs, collapses repeated impression rows before portfolio counts and lag analysis, and does not treat the upstream headline as a validated denominator.
 
 ---
 
@@ -131,7 +132,7 @@ Open [`docs/memo.md`](docs/memo.md) for the full one-page product recommendation
 criteo-attribution-analytics/
 ├── data/                         ← gitignored; put criteo_attribution_dataset.tsv.gz here
 ├── sql/
-│   ├── 01_load_sample.sql        ← 5% user-stratified sample
+│   ├── 01_load_sample.sql        ← Full load by default; 5% user sample via --sample-users
 │   ├── 02_staging.sql            ← NULL cleanup, sanity checks
 │   ├── 03_spend_efficiency.sql   ← Campaign cost & conversion efficiency
 │   ├── 04_funnel.sql             ← Funnel leakage & click/view split
